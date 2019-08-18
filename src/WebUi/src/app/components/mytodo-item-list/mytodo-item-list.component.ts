@@ -1,43 +1,75 @@
-<div class="container-fluid">
-<br>
-<div class="row">
-<div class="col-10 mx-auto">
-<form [formGroup]="todoForm" novalidate (ngSubmit)="onSubmit(todoForm.value)" >
-<div class="row">
-<div class="col-10">
-<input type="text" class="form-control" formControlName="item" #description>
-</div>
-<div class="col-2 ml-auto text-right">
-<button type="button" class="btn btn-primary" *ngIf="!selectedTodoItem">
-<span>Create Task </span>
-</button>
+import { Component, OnInit, ElementRef, ViewChild } from '@angular/core';
+import { FormBuilder, FormGroup } from '@angular/forms';
+import { MyTodoItem } from '../../models/mytodo-item';
+import { MyTodoItemService } from '../../services/mytodo-item.service';
 
-<button type="submit" class="btn btn-primary" *ngIf="selectedTodoItem">
-<span>Update Task </span>
-</button>
-</div>
-</div>
-</form>
-<br>
-<div class="row">
-<table class="table">
-<thead>
-<tr>
-<th class="w-75">Task </th>
-<th class="text-right">Action</th>
-</tr>
-</thead>
-<tbody>
-<tr *ngFor="let todoItem of todoItems" (click)="selectTodoItem(todoItem)">
-<td>{
-{todoItem.description}}</td>
-<td class="text-right">
-<button class="btn btn-primary" (click)="deleteTodoItem(todoItem, $event)">Delete </button>
-</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-</div>
-</div>
+@Component({
+  selector: 'app-mytodo-item-list',
+  templateUrl: './mytodo-item-list.component.html',
+  styleUrls: ['./mytodo-item-list.component.css'],
+  providers: [MyTodoItemService]
+})
+export class MyTodoItemListComponent implements OnInit {
+
+  constructor( private formBuilder: FormBuilder, private mytodoItemService: MyTodoItemService) { 
+    this.createForm();
+  }
+
+  @ViewChild("description") descriptionInput: ElementRef;
+  private createForm() {
+    this.mytodoForm = this.formBuilder.group({
+      item: ''
+    })
+  }
+
+  mytodoForm: FormGroup;
+  selectedMyTodoItem: MyTodoItem;
+  mytodoItems: MyTodoItem[] = [];
+
+  ngOnInit() {
+    this.mytodoItemService.getMyTodoItems().subscribe(
+      mytodoItems => this.mytodoItems = mytodoItems
+    );
+  }
+
+  onSubmit(model) {
+    const mytodoItemToSave: MyTodoItem = {
+      id: this.selectedMyTodoItem ? this.selectedMyTodoItem.id : null,
+      description: model.item
+    }
+    if(!this.selectedMyTodoItem){
+      this.mytodoItemService.saveMyTodoItem(mytodoItemToSave).subscribe(mytodoItem => this.mytodoItems.push(mytodoItem));
+    }else{
+      this.mytodoItemService.updateMyTodoItem(mytodoItemToSave).subscribe(result => this.mytodoItems.filter(
+       (mytodoItem =>this.isSameMyTodoItem(result, mytodoItem)
+      ))[0].description = result.description);
+    }
+
+    this.selectedMyTodoItem  = null;
+    this.mytodoForm.reset();
+  }
+
+  private isSameMyTodoItem(searchBy: MyTodoItem, lookingFor: MyTodoItem) {
+    return searchBy.id === lookingFor.id;
+  }
+
+  deleteMyTodoItem(mytodoItemToRemove: MyTodoItem, event) {
+    event.stopPropagation();
+
+    this.mytodoItemService.deleteMyTodoItem(mytodoItemToRemove).subscribe(
+      res => {
+        this.mytodoItems = this.mytodoItems.filter(
+          mytodoItem => mytodoItem.id !== mytodoItemToRemove.id
+        )
+
+        this.descriptionInput.nativeElement.focus();
+      }
+    )
+  }
+
+  selectMyTodoItem(mytodoItem: MyTodoItem) {
+    this.selectedMyTodoItem = mytodoItem;
+    this.mytodoForm.controls["item"].setValue(mytodoItem.description);
+    this.descriptionInput.nativeElement.focus();
+  }
+}
